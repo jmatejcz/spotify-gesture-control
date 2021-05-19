@@ -3,6 +3,8 @@ import mediapipe as mp
 import time
 import math
 import time
+import socket, pickle, struct
+import threading
 
 class handDetector():
     def __init__(self, mode=False, maxHands=2, detection_confidence=0.5, tracking_confidence=0.5):
@@ -17,11 +19,14 @@ class handDetector():
         self.waiting_for = None
 
         self.gestures = {
+            "starting_position" : 0,
             "snap" : 1,
             "gap_between_pointer_and_thumb" : 2,
-            "swing_left" : 3,
-            "swing_right" : 4
+            "swing" : 3,
+            "swing_left" : 4,
+            "swing_right" : 5
         }
+
 
     def find_hands(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -33,6 +38,7 @@ class handDetector():
                     self.mpDraw.draw_landmarks(img, handLms, self.mpHands.HAND_CONNECTIONS)
         
         return img
+ 
 
     def find_lm_positions(self, img, which_hand=0):
         lm_list = []
@@ -50,17 +56,6 @@ class handDetector():
         return lm_list
 
 
-
-    # returns list of coordinates which was given as argument , for ex. list_of_lms = [1, 5, 12]
-    # and lm_list is list of all landmarks
-    def lm_coords(self, list_of_lms, lm_list):
-        coords = []
-        for i in list_of_lms:
-            x, y = lm_list[i][1], lm_list[i][2]
-            coords.append([i, x, y])
-
-        return coords
-
     # returns list of distance between certain landmarks
     def lengths_between(self, list_of_coords):
         distance_list = []
@@ -68,53 +63,99 @@ class handDetector():
             pass
 
 
+    def find_gesture_pre_swing(self, lm_list):
+        # all fingers are straight
+        # and hand is more or less in the middle 
+        len5_8 = math.hypot(lm_list[5][1]-lm_list[8][1], lm_list[5][2]-lm_list[8][2])
+        len9_12 = math.hypot(lm_list[9][1]-lm_list[12][1], lm_list[9][2]-lm_list[12][2])
+        len13_16 = math.hypot(lm_list[13][1]-lm_list[16][1], lm_list[13][2]-lm_list[16][2])
+        len17_20 = math.hypot(lm_list[17][1]-lm_list[20][1], lm_list[17][2]-lm_list[20][2])
+        len1_4 = math.hypot(lm_list[1][1]-lm_list[4][1], lm_list[1][2]-lm_list[4][2])
+        if len1_4 > 70 and len5_8 > 70 and len9_12 > 75 and len13_16 > 70 and len17_20 > 50\
+            and len1_4 < 120 and len5_8 < 110 and len9_12 < 120 and len13_16 < 110 and len17_20 < 90\
+            and lm_list[0][1] > 245 and lm_list[0][1] < 395:
+            return True
+        #print(len1_4, len5_8, len9_12, len13_16, len17_20)
+
     
     def find_gesture_pre_snap(self, lm_list):
         # distance beetween middle finger tip and thumb tip
-        x4, y4 = lm_list[4][1], lm_list[4][2]
-        x12, y12 = lm_list[12][1], lm_list[12][2]
-        length_between = math.hypot(x4-x12, y4-y12)
+        length_between = math.hypot(lm_list[4][1]-lm_list[12][1],lm_list[4][2]-lm_list[12][2])
         #print(length_between)
         if length_between < 20:
             return True
 
+
     def find_gesture_post_snap(self, lm_list):
         # distance beetween middle finger tip and thumb tip
-        x4, y4 = lm_list[4][1], lm_list[4][2]
-        x12, y12 = lm_list[12][1], lm_list[12][2]
-        length_between = math.hypot(x4-x12, y4-y12)
+        length_between = math.hypot(lm_list[4][1]-lm_list[12][1], lm_list[4][2]-lm_list[12][2])
         #print(length_between)
         if length_between > 45:
             return True
 
+
     def find_gesture_pre_pt_distance(self, lm_list):
-        coords = self.lm_coords([4, 8, 9, 12, 13, 16, 17, 20], lm_list)
-        len9_12 = math.hypot(coords[2][1]-coords[3][1], coords[2][2]-coords[3][2])
-        len13_16 = math.hypot(coords[4][1]-coords[5][1], coords[4][2]-coords[5][2])
-        len17_20 = math.hypot(coords[6][1]-coords[7][1], coords[6][2]-coords[7][2])
-        len4_8 = math.hypot(coords[0][1]-coords[1][1], coords[0][2]-coords[1][2])
+        len9_12 = math.hypot(lm_list[9][1]-lm_list[12][1], lm_list[9][2]-lm_list[12][2])
+        len13_16 = math.hypot(lm_list[13][1]-lm_list[16][1], lm_list[13][2]-lm_list[16][2])
+        len17_20 = math.hypot(lm_list[17][1]-lm_list[20][1], lm_list[17][2]-lm_list[20][2])
+        len4_8 = math.hypot(lm_list[4][1]-lm_list[8][1], lm_list[4][2]-lm_list[8][2])
         if len9_12>80 and len13_16>80 and len17_20>80 and len4_8 < 15:
             return True
 
 
     def find_gesture_pointing_thumb_distance(self, lm_list):
-        coords = self.lm_coords([4, 8, 9, 12, 13, 16, 17, 20], lm_list)
-        len9_12 = math.hypot(coords[2][1]-coords[3][1], coords[2][2]-coords[3][2])
-        #print(f'length9_12: {len9_12}')
-        len13_16 = math.hypot(coords[4][1]-coords[5][1], coords[4][2]-coords[5][2])
-        #print(f'length13_16: {len13_16}')
-        len17_20 = math.hypot(coords[6][1]-coords[7][1], coords[6][2]-coords[7][2])
-        #print(f'length17_20: {len17_20}')
-
-        len4_8 = math.hypot(coords[0][1]-coords[1][1], coords[0][2]-coords[1][2])
-        #print(f'length4_8: {len4_8}')
-        #if len9_12<30 and len13_16<30 and len17_20<30:
+        len4_8 = math.hypot(lm_list[4][1]-lm_list[8][1], lm_list[4][2]-lm_list[8][2])
         return len4_8
 
-    def find_gesture_
+
+    def find_gesture_swing_left(self, lm_list):
+        if lm_list[0][1] > 450:
+            return True
+
+
+    def find_gesture_swing_right(self, lm_list):
+        if lm_list[0][1] < 190:
+            return True
+
+
+    def find_prepositions(self, lm_list):
+        if self.find_gesture_pre_swing(lm_list):
+            self.waiting_for = self.gestures['swing']
+            self.waiting_time = 50
         
+        elif self.find_gesture_pre_snap(lm_list):
+            self.waiting_for = self.gestures['snap']
+            self.waiting_time = 20
+
+        elif self.find_gesture_pre_pt_distance(lm_list):
+            self.waiting_for = self.gestures['gap_between_pointer_and_thumb']
+            self.waiting_time = 150
+        
+    
+    def find_post_positions(self, lm_list):
+        if self.waiting_for == 1:
+            if self.find_gesture_post_snap(lm_list):
+                self.waiting_time = -1
+                return self.gestures["snap"]
+        elif self.waiting_for == 2:
+            len_thumb_pointer = self.find_gesture_pointing_thumb_distance(lm_list)
+            if len_thumb_pointer:
+                return self.gestures["gap_between_pointer_and_thumb"], len_thumb_pointer
+        elif self.waiting_for == 3:
+            if self.find_gesture_swing_left(lm_list):
+                self.waiting_time = -1
+                return self.gestures["swing_left"]
+            elif self.find_gesture_swing_right(lm_list):
+                self.waiting_time = -1
+                return self.gestures["swing_right"]
 
 
+    def find_single_hand_gestures(self, lm_list):
+        if self.waiting_for == None:
+            self.find_prepositions(lm_list)
+        else:
+            return self.find_post_positions(lm_list)
+        
 
     def find_gestures(self, lm_list1, lm_list2):
         if self.waiting_time >= 0:
@@ -122,32 +163,28 @@ class handDetector():
         else:
             self.waiting_for = None
 
-        if len(lm_list1) > 0:
-        #print(self.waiting_time)
-            if self.find_gesture_pre_snap(lm_list1) and self.waiting_for == None:
-                self.waiting_time = 20
-                self.waiting_for = self.gestures["snap"]
-            
-            if self.waiting_for == 1:
-                if self.find_gesture_post_snap(lm_list1):
-                    self.waiting_time = -1
-                    return (self.gestures["snap"])
+        if len(lm_list1) > 0 and len(lm_list2) == 0:
+            return self.find_single_hand_gestures(lm_list1)
 
-            if self.find_gesture_pre_pt_distance(lm_list1) and self.waiting_for == None:
-                self.waiting_time = 150
-                self.waiting_for = self.gestures["gap_between_pointer_and_thumb"]
-
-            len_thumb_pointer = self.find_gesture_pointing_thumb_distance(lm_list1)
-            if len_thumb_pointer and self.waiting_for == 2:
-                return (self.gestures["gap_between_pointer_and_thumb"], len_thumb_pointer)
-
-        if len(lm_list2) > 0:
+        elif len(lm_list1) > 0 and len(lm_list2) > 0:
+            #TODO two-hand gestures
             pass
 
-        if len(lm_list1) == 0:
+        else:
             self.waiting_time = -1
             return None
 
+
+def socket():
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    host_name = socket.gethostname()
+    host_ip = socket.gethostbyname(host_name)
+    port = 5050
+    socket_addr = (host_ip, port)
+
+    client_socket.bind(socket_addr)
+
+    client_socket.listen(5)
 
 def main():
     capture = cv2.VideoCapture(0)
@@ -164,7 +201,6 @@ def main():
         img = detector.find_hands(img)
         lm_list1 = detector.find_lm_positions(img)
         lm_list2 = detector.find_lm_positions(img, which_hand=1)
-
         found_gest = detector.find_gestures(lm_list1, lm_list2)
         if found_gest: 
             print(found_gest)

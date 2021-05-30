@@ -42,24 +42,34 @@ def handle_api(server_socket, spotify, device_id, gestures):
         server_socket.listen(5)
         client, address = server_socket.accept()
         print(f"Connection ok - {address[0]}:{address[1]}")
-        client_string = client.recv(4)
+        client_string = client.recv(20)
         client_string = client_string.decode("utf-8")
-
-        if client_string[0] == str(gestures.get_gesture_value(gestures.get_spotify_action_gesture("play/pause"))):
+        client_string = eval(client_string)
+        print
+        if type(client_string) is int:
+            client_gesture = client_string
+        elif type(client_string) is tuple:
+            client_gesture = client_string[0]
+            gesture_value = client_string[1]
+        print(client_gesture)
+        if client_gesture == gestures.get_gesture_value(gestures.get_spotify_action_gesture("play/pause")):
             try:
                 spotify.pause_playback(device_id=device_id)
             except spotipy.exceptions.SpotifyException:
                 spotify.start_playback(device_id=device_id)
-        elif client_string[0] == str(gestures.get_gesture_value(gestures.get_spotify_action_gesture("volume"))):
-            pass
-        elif client_string[0] == str(gestures.get_gesture_value(gestures.get_spotify_action_gesture("shuffle"))):
+        elif client_gesture == gestures.get_gesture_value(gestures.get_spotify_action_gesture("volume")):
+            volume = gesture_value - 20
+            if volume > 100:
+                volume = 100
+            spotify.volume(device_id=device_id, volume_percent=volume)
+        elif client_gesture == gestures.get_gesture_value(gestures.get_spotify_action_gesture("shuffle")):
             if spotify.current_playback()["shuffle_state"]:
                 spotify.shuffle(device_id=device_id, state=False)
             else:
                 spotify.shuffle(device_id=device_id, state=True)
-        elif client_string[0] == str(gestures.get_gesture_value(gestures.get_spotify_action_gesture("next_track"))):
+        elif client_gesture == gestures.get_gesture_value(gestures.get_spotify_action_gesture("next_track")):
             spotify.next_track()
-        elif client_string[0] == str(gestures.get_gesture_value(gestures.get_spotify_action_gesture("previous_track"))):
+        elif client_gesture == gestures.get_gesture_value(gestures.get_spotify_action_gesture("previous_track")):
             spotify.previous_track(device_id=device_id)
 
         client.close()

@@ -40,6 +40,7 @@ class handDetector():
         return img
 
     def find_lm_positions(self, img, which_hand=0):
+        ''' returns list of all landmarks' coords '''
         lm_list = []
         try:
             if self.results.multi_hand_landmarks:
@@ -60,9 +61,14 @@ class handDetector():
         for nr, x, y in list_of_coords:
             pass
 
+    ''' pre_gestures are starting points of all gestures '''
+    ''' after they are detected algorithm start searching for certain ending positions'''
+    ''' if ending position is detected in certain amount of frames after staring position '''
+    ''' whole gesture is detected '''
+    
     def find_gesture_pre_swing(self, lm_list):
-        # all fingers are straight
-        # and hand is more or less in the middle 
+        ''' all fingers are straight '''
+        ''' and hand is more or less in the middle '''
         len5_8 = math.hypot(lm_list[5][1] - lm_list[8][1], lm_list[5][2] - lm_list[8][2])
         len9_12 = math.hypot(lm_list[9][1] - lm_list[12][1], lm_list[9][2] - lm_list[12][2])
         len13_16 = math.hypot(lm_list[13][1] - lm_list[16][1], lm_list[13][2] - lm_list[16][2])
@@ -75,20 +81,22 @@ class handDetector():
         # print(len1_4, len5_8, len9_12, len13_16, len17_20)
 
     def find_gesture_pre_snap(self, lm_list):
-        # distance beetween middle finger tip and thumb tip
+        ''' distance beetween middle finger tip and thumb tip is small enough'''
         length_between = math.hypot(lm_list[4][1] - lm_list[12][1], lm_list[4][2] - lm_list[12][2])
-        # print(length_between)
+        #print(f'pre_snap {length_between}')
         if length_between < 20:
             return True
 
     def find_gesture_post_snap(self, lm_list):
-        # distance beetween middle finger tip and thumb tip
+        ''' distance beetween middle finger tip and thumb tip '''
         length_between = math.hypot(lm_list[4][1] - lm_list[12][1], lm_list[4][2] - lm_list[12][2])
-        # print(length_between)
+        #print(f'post snap {length_between}')
         if length_between > 45:
             return True
 
     def find_gesture_pre_pt_distance(self, lm_list):
+        ''' thumb and pointing finger stick together'''
+        ''' other fingers straight '''
         len9_12 = math.hypot(lm_list[9][1] - lm_list[12][1], lm_list[9][2] - lm_list[12][2])
         len13_16 = math.hypot(lm_list[13][1] - lm_list[16][1], lm_list[13][2] - lm_list[16][2])
         len17_20 = math.hypot(lm_list[17][1] - lm_list[20][1], lm_list[17][2] - lm_list[20][2])
@@ -97,7 +105,7 @@ class handDetector():
             return True
 
     def find_gesture_pointing_thumb_distance(self, lm_list):
-        len4_8 = math.hypot(lm_list[4][1] - lm_list[8][1], lm_list[4][2] - lm_list[8][2])
+        len4_8 = round(math.hypot(lm_list[4][1] - lm_list[8][1], lm_list[4][2] - lm_list[8][2]))
         return len4_8
 
     def find_gesture_swing_left(self, lm_list):
@@ -181,7 +189,7 @@ def main():
     capture = cv2.VideoCapture(0)
     capture.set(3, 640)
     capture.set(4, 480)
-    detector = handDetector(detection_confidence=0.7, tracking_confidence=0.6)
+    detector = handDetector(detection_confidence=0.8, tracking_confidence=0.6)
     start_time = 0
     end_time = 0
     while True:
@@ -195,7 +203,10 @@ def main():
         found_gest = detector.find_gestures(lm_list1, lm_list2)
         if found_gest:
             print(found_gest)
-            client_socket.send_detected_gesture(found_gest)
+            try:
+                client_socket.send_detected_gesture(found_gest)
+            except:
+                print('failed to send gesture to server')
 
         end_time = start_time
         cv2.putText(img, str(fps), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 100, 255), 3)

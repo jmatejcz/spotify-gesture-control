@@ -8,8 +8,8 @@ from spotipy.oauth2 import SpotifyOAuth
 
 class SpotifyApi:
     def __init__(self):
-        self.client_id = '' # put your spotify app client id
-        self.client_secret = '' # put your spotify app client secret
+        self.client_id = '64eeb7d8e6fb4fce885000b1690d49c2' # put your spotify app client id
+        self.client_secret = '81a127f6088b44b58b46f6cbc001c346' # put your spotify app client secret
         self.token_url = "https://accounts.spotify.com/api/token"
         self.token_data = {"grant_type": "client_credentials"}
         self.access_token = None

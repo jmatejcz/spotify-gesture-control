@@ -84,13 +84,13 @@ class handDetector():
         ''' distance beetween middle finger tip and thumb tip is small enough'''
         length_between = math.hypot(lm_list[4][1] - lm_list[12][1], lm_list[4][2] - lm_list[12][2])
         #print(f'pre_snap {length_between}')
-        if length_between < 20:
+        if length_between < 15:
             return True
 
     def find_gesture_post_snap(self, lm_list):
         ''' distance beetween middle finger tip and thumb tip '''
         length_between = math.hypot(lm_list[4][1] - lm_list[12][1], lm_list[4][2] - lm_list[12][2])
-        #print(f'post snap {length_between}')
+        print(f'post snap {length_between}')
         if length_between > 45:
             return True
 
@@ -101,18 +101,18 @@ class handDetector():
         len13_16 = math.hypot(lm_list[13][1] - lm_list[16][1], lm_list[13][2] - lm_list[16][2])
         len17_20 = math.hypot(lm_list[17][1] - lm_list[20][1], lm_list[17][2] - lm_list[20][2])
         len4_8 = math.hypot(lm_list[4][1] - lm_list[8][1], lm_list[4][2] - lm_list[8][2])
-        if len9_12 > 80 and len13_16 > 80 and len17_20 > 80 and len4_8 < 15:
+        if len9_12 > 70 and len13_16 > 70 and len17_20 > 70 and len4_8 < 15:
             return True
 
     def find_gesture_pointing_thumb_distance(self, lm_list):
         len4_8 = round(math.hypot(lm_list[4][1] - lm_list[8][1], lm_list[4][2] - lm_list[8][2]))
         return len4_8
 
-    def find_gesture_swing_left(self, lm_list):
+    def find_gesture_swing_right(self, lm_list):
         if lm_list[0][1] > 450:
             return True
 
-    def find_gesture_swing_right(self, lm_list):
+    def find_gesture_swing_left(self, lm_list):
         if lm_list[0][1] < 190:
             return True
 
@@ -127,7 +127,7 @@ class handDetector():
 
         elif self.find_gesture_pre_pt_distance(lm_list):
             self.waiting_for = self.gestures['gap_between_pointer_and_thumb']
-            self.waiting_time = 150
+            self.waiting_time = 100
 
     def find_post_positions(self, lm_list):
         if self.waiting_for == 1:
@@ -175,8 +175,11 @@ class Socket:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # self.ip = "" type ip here if gethostbyname doesn't work
         self.host_name = socket.gethostname()
+        #self.host_name = '192.168.56.1'
         self.ip = socket.gethostbyname(self.host_name)
-        self.port = 80
+        #self.ip = '79.184.239.4'
+        self.port = 5050
+        self.delay = 0
 
     def send_detected_gesture(self, gesture_id):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -200,13 +203,18 @@ def main():
         img = detector.find_hands(img)
         lm_list1 = detector.find_lm_positions(img)
         lm_list2 = detector.find_lm_positions(img, which_hand=1)
-        found_gest = detector.find_gestures(lm_list1, lm_list2)
-        if found_gest:
-            print(found_gest)
-            try:
-                client_socket.send_detected_gesture(found_gest)
-            except:
-                print('failed to send gesture to server')
+        if client_socket.delay < 0:
+            found_gest = detector.find_gestures(lm_list1, lm_list2)
+            if found_gest:
+                print(found_gest)
+                try:
+                    client_socket.send_detected_gesture(found_gest)
+                    client_socket.delay = 20
+                except:
+                    print('failed to send gesture to server')
+        else:
+            client_socket.delay -= 1
+        
 
         end_time = start_time
         cv2.putText(img, str(fps), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 100, 255), 3)

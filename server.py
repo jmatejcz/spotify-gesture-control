@@ -61,6 +61,8 @@ def handle_api(server_socket, spotify, device_id, gestures):
             volume = gesture_value - 20
             if volume > 100:
                 volume = 100
+            elif volume < 0:
+                volume = 0
             spotify.volume(device_id=device_id, volume_percent=volume)
         elif client_gesture == gestures.get_gesture_value(gestures.get_spotify_action_gesture("shuffle")):
             if spotify.current_playback()["shuffle_state"]:
@@ -78,7 +80,7 @@ def handle_api(server_socket, spotify, device_id, gestures):
 def main():
     host_name = socket.gethostname()
     ip = socket.gethostbyname(host_name)
-    port = 80
+    port = 5050
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((ip, port))
     sp = SpotifyApi()

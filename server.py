@@ -12,7 +12,10 @@ class GestureContainer:
             "gap_between_pointer_and_thumb": 2,
             "swing": 3,
             "swing_left": 4,
-            "swing_right": 5
+            "swing_right": 5,
+            "one_up" : 6,
+            "two_up" : 7,
+            "three_up" : 8
         }
 
         self.spotify_actions = {
